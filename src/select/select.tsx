@@ -12,17 +12,19 @@ import SelectInput from '../select-input';
 import SelectPanel from './select-panel';
 
 import props from './props';
-import { TdSelectProps, SelectValue } from './type';
-import { PopupVisibleChangeContext } from '../popup';
-
 // hooks
 import { useFormDisabled } from '../form/hooks';
 import useDefaultValue from '../hooks/useDefaultValue';
 import useVModel from '../hooks/useVModel';
 import { useTNodeJSX } from '../hooks/tnode';
 import { useConfig, usePrefixClass } from '../hooks/useConfig';
-import { selectInjectKey, getSingleContent, getMultipleContent, getNewMultipleValue } from './helper';
+import { selectInjectKey, getSingleContent, getMultipleContent } from './helper';
 import { useSelectOptions } from './hooks/useSelectOptions';
+import useKeyboardControl from './hooks/useKeyboardControl';
+
+import type { PopupVisibleChangeContext } from '../popup';
+import type { SelectInputValueChangeContext } from '../select-input';
+import type { TdSelectProps, SelectValue } from './type';
 
 export default defineComponent({
   name: 'TSelect',
@@ -34,14 +36,21 @@ export default defineComponent({
     const COMPONENT_NAME = usePrefixClass('select');
     const { globalConfig, t } = useConfig('select');
     const { popupVisible, inputValue, modelValue, value } = toRefs(props);
+    const [innerInputValue, setInputValue] = useDefaultValue(
+      inputValue,
+      props.defaultInputValue,
+      props.onInputChange,
+      'inputValue',
+    );
     const [orgValue, setOrgValue] = useVModel(value, modelValue, props.defaultValue, props.onChange);
     const selectPanelRef = ref(null);
     const selectInputRef = ref(null);
     const keys = computed(() => ({
       label: props.keys?.label || 'label',
       value: props.keys?.value || 'value',
+      disabled: props.keys?.disabled || 'disabled',
     }));
-    const { options, optionsMap, optionsList, optionsCache } = useSelectOptions(props, keys);
+    const { optionsMap, optionsList, optionsCache, displayOptions } = useSelectOptions(props, keys, innerInputValue);
 
     // 内部数据,格式化过的
     const innerValue = computed(() => {
@@ -55,6 +64,7 @@ export default defineComponent({
       }
       return orgValue.value;
     });
+
     const setInnerValue: TdSelectProps['onChange'] = (newVal: SelectValue | SelectValue[], context) => {
       if (props.valueType === 'object') {
         const { value, label } = keys.value;
@@ -77,12 +87,6 @@ export default defineComponent({
       });
     };
 
-    const [innerInputValue, setInputValue] = useDefaultValue(
-      inputValue,
-      props.defaultInputValue,
-      props.onInputChange,
-      'inputValue',
-    );
     const [innerPopupVisible, setInnerPopupVisible] = useDefaultValue(
       popupVisible,
       false,
@@ -154,73 +158,6 @@ export default defineComponent({
       setInputValue('');
     };
 
-    // 键盘操作逻辑
-    const hoverIndex = ref(-1);
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const optionsListLength = optionsList.value.length;
-      let newIndex = hoverIndex.value;
-      switch (e.code) {
-        case 'ArrowUp':
-          e.preventDefault();
-          if (hoverIndex.value === -1) {
-            newIndex = 0;
-          } else if (hoverIndex.value === 0) {
-            newIndex = optionsListLength - 1;
-          } else {
-            newIndex--;
-          }
-          if (optionsList.value[newIndex]?.disabled) {
-            newIndex--;
-          }
-          hoverIndex.value = newIndex;
-          break;
-        case 'ArrowDown':
-          e.preventDefault();
-          if (hoverIndex.value === -1 || hoverIndex.value === optionsListLength - 1) {
-            newIndex = 0;
-          } else {
-            newIndex++;
-          }
-          if (optionsList.value[newIndex]?.disabled) {
-            newIndex++;
-          }
-          hoverIndex.value = newIndex;
-          break;
-        case 'Enter':
-          if (hoverIndex.value === -1) break;
-          if (!innerPopupVisible.value) {
-            setInnerPopupVisible(true, { e });
-            break;
-          }
-          if (!props.multiple) {
-            const selectedOptions = getSelectedOptions(optionsList.value[hoverIndex.value].value);
-            setInnerValue(optionsList.value[hoverIndex.value].value, {
-              option: selectedOptions?.[0],
-              selectedOptions: getSelectedOptions(optionsList.value[hoverIndex.value].value),
-              trigger: 'check',
-              e,
-            });
-            setInnerPopupVisible(false, { e });
-          } else {
-            if (hoverIndex.value === -1) return;
-            const optionValue = optionsList.value[hoverIndex.value]?.value;
-            if (!optionValue) return;
-            const newValue = getNewMultipleValue(innerValue.value, optionValue);
-            const selectedOptions = getSelectedOptions(newValue.value);
-            setInnerValue(newValue.value, {
-              option: selectedOptions.find((v) => v.value == optionValue),
-              selectedOptions,
-              trigger: newValue.isCheck ? 'check' : 'uncheck',
-              e,
-            });
-          }
-          break;
-        case 'Escape':
-          setInnerPopupVisible(false, { e });
-          break;
-      }
-    };
-
     const popupContentRef = computed(() => selectInputRef.value?.popupRef.getOverlay() as HTMLElement);
 
     /**
@@ -240,6 +177,21 @@ export default defineComponent({
         return selectValue === option.value;
       });
     };
+
+    const { hoverIndex, virtualFilteredOptions, handleKeyDown } = useKeyboardControl({
+      displayOptions,
+      optionsList,
+      innerPopupVisible,
+      setInnerPopupVisible,
+      selectPanelRef,
+      isFilterable,
+      getSelectedOptions,
+      setInnerValue,
+      innerValue,
+      popupContentRef,
+      multiple: props.multiple,
+      max: props.max,
+    });
 
     const onCheckAllChange = (checked: boolean) => {
       if (!props.multiple) return;
@@ -262,7 +214,7 @@ export default defineComponent({
     // 半选
     const indeterminate = computed<boolean>(() => !isCheckAll.value && intersectionLen.value !== 0);
 
-    const SelectProvide = computed(() => ({
+    const SelectProvider = computed(() => ({
       max: props.max,
       multiple: props.multiple,
       hoverIndex: hoverIndex.value,
@@ -278,9 +230,10 @@ export default defineComponent({
       isCheckAll: isCheckAll.value,
       onCheckAllChange,
       getSelectedOptions,
+      displayOptions: displayOptions.value,
     }));
 
-    provide(selectInjectKey, SelectProvide);
+    provide(selectInjectKey, SelectProvider);
 
     const checkValueInvalid = () => {
       // 参数类型检测与修复
@@ -291,9 +244,22 @@ export default defineComponent({
         setOrgValue([], { selectedOptions: [], trigger: 'default' });
       }
     };
+
     const handleSearch = debounce((value: string, { e }: { e: KeyboardEvent }) => {
       props.onSearch?.(`${value}`, { e });
     }, 300);
+
+    const handlerInputChange = (value: string, context: SelectInputValueChangeContext) => {
+      if (value) {
+        setInnerPopupVisible(true, { e: context.e as KeyboardEvent });
+      }
+      setInputValue(value);
+      handleSearch(`${value}`, { e: context.e as KeyboardEvent });
+
+      nextTick(() => {
+        virtualFilteredOptions.value = selectPanelRef.value?.visibleData;
+      });
+    };
 
     const addCache = (val: SelectValue) => {
       if (props.multiple) {
@@ -331,18 +297,6 @@ export default defineComponent({
         checkValueInvalid();
       },
     );
-    watch(innerPopupVisible, (value) => {
-      if (value) {
-        // 显示
-        hoverIndex.value = -1;
-      } else {
-        // 隐藏
-        // eslint-disable-next-line no-lonely-if
-        if (innerInputValue.value) {
-          setInputValue('');
-        }
-      }
-    });
 
     // 列表展开时定位置选中项
     const updateScrollTop = (content: HTMLDivElement) => {
@@ -387,6 +341,7 @@ export default defineComponent({
               minCollapsedNum: props.minCollapsedNum,
               autofocus: props.autofocus,
               suffix: props.suffix,
+              valueDisplayOptions: props.valueDisplayOptions,
             }}
             ref={selectInputRef}
             class={COMPONENT_NAME.value}
@@ -399,6 +354,7 @@ export default defineComponent({
             collapsed-items={props.collapsedItems}
             inputProps={{
               size: props.size,
+              autofocus: props.autofocus,
               ...(props.inputProps as TdSelectProps['inputProps']),
               onkeydown: handleKeyDown,
             }}
@@ -414,7 +370,9 @@ export default defineComponent({
               overlayClassName: [`${COMPONENT_NAME.value}__dropdown`, overlayClassName],
               ...restPopupProps,
             }}
-            label={() => renderTNodeJSX('prefixIcon')}
+            label={props.label}
+            prefixIcon={props.prefixIcon}
+            suffix={props.suffix}
             suffixIcon={() => {
               if (props.suffixIcon || slots.suffixIcon) {
                 return renderTNodeJSX('suffixIcon');
@@ -437,11 +395,7 @@ export default defineComponent({
             onPopupVisibleChange={(val: boolean, context) => {
               setInnerPopupVisible(val, context);
             }}
-            onInputChange={(value, context) => {
-              if (!innerPopupVisible.value) return;
-              setInputValue(value);
-              handleSearch(`${value}`, { e: context.e as KeyboardEvent });
-            }}
+            onInputChange={handlerInputChange}
             onClear={({ e }) => {
               setInnerValue(props.multiple ? [] : undefined, {
                 option: null,
@@ -459,10 +413,14 @@ export default defineComponent({
               props.onBlur?.({ e, value: innerValue.value });
             }}
             onFocus={(inputValue, { e }) => {
+              setInputValue('');
               props.onFocus?.({ e, value: innerValue.value });
             }}
             {...(props.selectInputProps as TdSelectProps['selectInputProps'])}
             v-slots={{
+              label: slots.label,
+              prefixIcon: slots.prefixIcon,
+              suffix: slots.suffix,
               panel: () => (
                 <SelectPanel
                   ref={selectPanelRef}
@@ -479,13 +437,11 @@ export default defineComponent({
                     'filter',
                     'scroll',
                   ])}
-                  options={options.value}
                   inputValue={innerInputValue.value}
                   v-slots={slots}
                 />
               ),
               collapsedItems: slots.collapsedItems,
-              suffix: slots.suffix,
             }}
           />
         </div>

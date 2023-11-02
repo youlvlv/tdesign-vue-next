@@ -7,12 +7,12 @@
 import { InputProps } from '../input';
 import { InputValue } from '../input';
 import { PopupProps } from '../popup';
-import { SelectInputProps } from '../select-input';
+import { SelectInputProps, SelectInputValueDisplayOptions } from '../select-input';
 import { TagInputProps } from '../tag-input';
 import { TagProps } from '../tag';
 import { SelectInputValueChangeContext } from '../select-input';
 import { PopupVisibleChangeContext } from '../popup';
-import { PlainObject, TNode, SizeEnum, InfinityScroll } from '../common';
+import { PlainObject, TNode, SizeEnum, KeysType, InfinityScroll } from '../common';
 
 export interface TdSelectProps<T extends SelectOption = SelectOption> {
   /**
@@ -73,9 +73,9 @@ export interface TdSelectProps<T extends SelectOption = SelectOption> {
    */
   defaultInputValue?: InputValue;
   /**
-   * 用来定义 value / label 在 `options` 中对应的字段别名
+   * 用来定义 value / label / disabled 在 `options` 中对应的字段别名
    */
-  keys?: SelectKeysType;
+  keys?: KeysType;
   /**
    * 左侧文本
    */
@@ -206,6 +206,10 @@ export interface TdSelectProps<T extends SelectOption = SelectOption> {
    */
   valueDisplay?: string | TNode<{ value: SelectValue; onClose: (index: number) => void; displayValue?: SelectValue }>;
   /**
+   * 自定义值呈现的选项，useInputDisplay表示在使用时仍然使用组件自带的输入回显实现，usePlaceholder表示在使用时仍然使用自带的占位符实现
+   */
+  valueDisplayOptions?: SelectInputValueDisplayOptions;
+  /**
    * 用于控制选中值的类型。假设数据选项为：`[{ label: '姓名', value: 'name' }]`，value 表示值仅返回数据选项中的 value， object 表示值返回全部数据。
    * @default value
    */
@@ -300,11 +304,6 @@ export interface TdOptionGroupProps {
    * 分组别名
    * @default ''
    */
-  label?: string;
-}
-
-export interface SelectKeysType {
-  value?: string;
   label?: string;
 }
 

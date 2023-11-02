@@ -12,7 +12,7 @@ import { TagProps } from '../tag';
 import { TreeProps, TreeNodeModel } from '../tree';
 import { SelectInputValueChangeContext } from '../select-input';
 import { PopupVisibleChangeContext } from '../popup';
-import { TNode, TreeOptionData } from '../common';
+import { TNode, TreeOptionData, TreeKeysType } from '../common';
 
 export interface TdTreeSelectProps<DataOption extends TreeOptionData = TreeOptionData> {
   /**
@@ -71,6 +71,10 @@ export interface TdTreeSelectProps<DataOption extends TreeOptionData = TreeOptio
    */
   defaultInputValue?: InputValue;
   /**
+   * 用来定义 `value / label / children / disabled` 在 `data` 数据中对应的字段别名，示例：`{ value: 'key', label 'name', children: 'list' }`
+   */
+  keys?: TreeKeysType;
+  /**
    * 是否正在加载数据
    * @default false
    */
@@ -125,6 +129,14 @@ export interface TdTreeSelectProps<DataOption extends TreeOptionData = TreeOptio
    * @default medium
    */
   size?: 'small' | 'medium' | 'large';
+  /**
+   * 后置图标前的后置内容
+   */
+  suffix?: string | TNode;
+  /**
+   * 组件后置图标
+   */
+  suffixIcon?: TNode;
   /**
    * 【开发中】透传 Tag 标签组件全部属性
    */

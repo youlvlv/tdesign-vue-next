@@ -157,7 +157,7 @@ export default defineComponent({
         [firstValue.value, secondValue.value] = [maxLimit, minLimit];
         return [maxLimit, minLimit];
       }
-      let preValue = value;
+      let preValue = value as number;
       if (preValue < min) {
         preValue = min;
       }
@@ -328,13 +328,13 @@ export default defineComponent({
     const renderInputNumber = useSliderInput(inputConfig);
 
     const renderInputButton = (): VNode => {
-      const firstInputVal = firstValue.value;
+      const firstInputVal = setValues(firstValue.value) as number;
       const firstInputOnChange = (v: number) => {
-        firstValue.value = v;
+        firstValue.value = setValues(v) as number;
       };
-      const secondInputVal = secondValue.value;
+      const secondInputVal = setValues(secondValue.value) as number;
       const secondInputOnChange = (v: number) => {
-        secondValue.value = v;
+        secondValue.value = setValues(v) as number;
       };
       return (
         <div
@@ -392,6 +392,8 @@ export default defineComponent({
               value={firstValue.value}
               ref={firstButtonRef}
               disabled={disabled.value}
+              range={props.range}
+              position="start"
               tooltip-props={props.tooltipProps}
               label={props.label}
               onInput={(v: number) => {
@@ -405,6 +407,8 @@ export default defineComponent({
                 ref={secondButtonRef}
                 disabled={disabled.value}
                 label={props.label}
+                range={props.range}
+                position="end"
                 tooltip-props={props.tooltipProps}
                 onInput={(v: number) => {
                   secondValue.value = v;

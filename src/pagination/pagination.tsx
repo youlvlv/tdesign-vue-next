@@ -1,4 +1,4 @@
-import { defineComponent, computed, ref, watch, toRefs } from 'vue';
+import { defineComponent, computed, ref, watch, toRefs, getCurrentInstance } from 'vue';
 import isNaN from 'lodash/isNaN';
 import {
   PageFirstIcon as TdPageFirstIcon,
@@ -30,6 +30,8 @@ export default defineComponent({
   props,
 
   setup(props: TdPaginationProps) {
+    const { emit } = getCurrentInstance();
+
     const { modelValue, pageSize, current } = toRefs(props);
     const renderTNodeJSX = useTNodeJSX();
     const [innerCurrent, setInnerCurrent] = useVModel(
@@ -151,10 +153,14 @@ export default defineComponent({
           previous: prev,
           pageSize: innerPageSize.value,
         };
+
         if (isTriggerChange !== false) {
+          setInnerCurrent(current, pageInfo);
           props.onChange?.(pageInfo);
+        } else {
+          // 非主动更改时应仅更新modelValue不触发onCurrentChange事件
+          emit('update:modelValue', current);
         }
-        setInnerCurrent(current, pageInfo);
       }
     };
 

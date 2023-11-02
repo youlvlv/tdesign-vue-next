@@ -43,7 +43,8 @@ const createDialog: DialogMethod = (props: DialogOptions) => {
       };
     },
   });
-  const dialog = createApp(component).mount(wrapper);
+  const dialogComponent = createApp(component);
+  const dialog = dialogComponent.mount(wrapper);
 
   let preClassName = className;
 
@@ -87,8 +88,12 @@ const createDialog: DialogMethod = (props: DialogOptions) => {
     destroy: () => {
       visible.value = false;
       setTimeout(() => {
-        wrapper.parentNode.removeChild(wrapper);
+        dialogComponent.unmount();
+        wrapper.remove();
       }, 300);
+    },
+    setConfirmLoading: (val: boolean) => {
+      dialog.update({ confirmLoading: val });
     },
   };
   return dialogNode;
@@ -111,9 +116,9 @@ const extraApi: ExtraApi = {
   alert,
 };
 
-export type DialogPluginType = Plugin & ExtraApi & DialogAlertMethod;
+export type DialogPluginType = Plugin & ExtraApi & DialogMethod;
 
-export const DialogPlugin: DialogPluginType = createDialog as DialogPluginType;
+export const DialogPlugin = createDialog as DialogPluginType;
 
 DialogPlugin.install = (app: App): void => {
   app.config.globalProperties.$dialog = createDialog;

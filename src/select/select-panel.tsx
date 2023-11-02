@@ -1,5 +1,4 @@
-import { computed, defineComponent, inject, PropType, Slots, ref } from 'vue';
-import isFunction from 'lodash/isFunction';
+import { computed, defineComponent, inject, Slots, ref } from 'vue';
 import omit from 'lodash/omit';
 import { Styles } from '../common';
 
@@ -26,10 +25,6 @@ export default defineComponent({
     multiple: TdSelectProps.multiple,
     filterable: TdSelectProps.filterable,
     filter: TdSelectProps.filter,
-    options: {
-      type: Array as PropType<SelectOption[]>,
-      default: (): SelectOption[] => [],
-    },
     scroll: TdSelectProps.scroll,
     size: TdSelectProps.size,
   },
@@ -43,34 +38,7 @@ export default defineComponent({
 
     const popupContentRef = computed(() => tSelect.value.popupContentRef.value);
     const showCreateOption = computed(() => props.creatable && props.filterable && props.inputValue);
-
-    const displayOptions = computed(() => {
-      if (!props.inputValue || !(props.filterable || isFunction(props.filter))) return props.options;
-
-      const filterMethods = (option: SelectOption) => {
-        if (isFunction(props.filter)) {
-          return props.filter(`${props.inputValue}`, option);
-        }
-
-        return option.label?.toLowerCase?.().indexOf(`${props.inputValue}`.toLowerCase()) > -1;
-      };
-
-      const res: SelectOption[] = [];
-
-      props.options.forEach((option) => {
-        if ((option as SelectOptionGroup).group && (option as SelectOptionGroup).children) {
-          res.push({
-            ...option,
-            children: (option as SelectOptionGroup).children.filter(filterMethods),
-          });
-        }
-        if (filterMethods(option)) {
-          res.push(option);
-        }
-      });
-
-      return res;
-    });
+    const displayOptions = computed(() => tSelect.value.displayOptions);
 
     const { trs, visibleData, handleRowMounted, isVirtual, panelStyle, cursorStyle } = usePanelVirtualScroll({
       scroll: props.scroll,
@@ -105,7 +73,7 @@ export default defineComponent({
             }
             return (
               <Option
-                {...omit(item, '$index', 'className')}
+                {...omit(item, 'index', '$index', 'className', 'tagName')}
                 {...(isVirtual.value
                   ? {
                       rowIndex: item.$index,
@@ -118,6 +86,7 @@ export default defineComponent({
                   : {
                       key: `${index}_${item.value}`,
                     })}
+                index={index}
                 multiple={props.multiple}
                 v-slots={item.slots}
                 onRowMounted={handleRowMounted}
@@ -137,6 +106,8 @@ export default defineComponent({
 
     expose({
       innerRef,
+      visibleData,
+      isVirtual,
     });
 
     const renderPanel = (options: SelectOption[], extraStyle?: Styles) => (
@@ -146,7 +117,6 @@ export default defineComponent({
           `${COMPONENT_NAME.value}__dropdown-inner`,
           `${COMPONENT_NAME.value}__dropdown-inner--size-${dropdownInnerSize.value}`,
         ]}
-        onClick={(e) => e.stopPropagation()}
         style={extraStyle}
       >
         {}

@@ -1,5 +1,5 @@
-import { computed, defineComponent, ref, SetupContext, toRefs } from 'vue';
-import Popup from '../popup';
+import { computed, defineComponent, onBeforeUnmount, onMounted, ref, SetupContext, toRefs, watch } from 'vue';
+import Popup, { PopupInstanceFunctions, PopupProps, PopupVisibleChangeContext } from '../popup';
 import props from './props';
 import { TdSelectInputProps } from './type';
 import useSingle from './useSingle';
@@ -30,11 +30,16 @@ export default defineComponent({
     const renderTNodeJSX = useTNodeJSX();
 
     const selectInputRef = ref();
-    const popupRef = ref();
+    const popupRef = ref<PopupInstanceFunctions>();
     const { multiple, value, popupVisible, borderless } = toRefs(props);
-    const { commonInputProps, onInnerClear, renderSelectSingle } = useSingle(props, context);
-    const { renderSelectMultiple } = useMultiple(props, context);
+
     const { tOverlayInnerStyle, innerPopupVisible, onInnerPopupVisibleChange } = useOverlayInnerStyle(props);
+
+    const { isSingleFocus, commonInputProps, onInnerClear, renderSelectSingle } = useSingle(props, context, popupRef);
+
+    const { isMultipleFocus, tagInputRef, renderSelectMultiple } = useMultiple(props, context, popupRef);
+
+    const isFocus = computed(() => (props.multiple ? isMultipleFocus.value : isSingleFocus.value));
 
     const classes = computed(() => [
       `${NAME_CLASS.value}`,
@@ -45,6 +50,40 @@ export default defineComponent({
         [BASE_CLASS_EMPTY.value]: value.value instanceof Array ? !value.value.length : !value.value,
       },
     ]);
+
+    const addKeyboardEventListener = (e: KeyboardEvent) => {
+      const code = e.code || e.key?.trim();
+      if (/(ArrowDown|ArrowUp)/.test(code) && !popupVisible.value) {
+        const ctx: PopupVisibleChangeContext = { ...context, trigger: 'trigger-element-focus' };
+        props.onPopupVisibleChange?.(true, ctx);
+      }
+    };
+
+    watch([isFocus], ([isFocus]) => {
+      if (popupVisible.value) return;
+      if (isFocus) {
+        selectInputRef.value.addEventListener('keydown', addKeyboardEventListener);
+      } else {
+        selectInputRef.value.removeEventListener('keydown', addKeyboardEventListener);
+      }
+    });
+
+    onMounted(() => {
+      if (!popupVisible.value && isFocus) {
+        selectInputRef.value.addEventListener('keydown', addKeyboardEventListener);
+      }
+    });
+
+    onBeforeUnmount(() => {
+      selectInputRef.value.removeEventListener('keydown', addKeyboardEventListener);
+    });
+
+    const onOverlayClick: PopupProps['onOverlayClick'] = (ctx) => {
+      ctx.e?.stopPropagation();
+      // do not set focus if target can be focused
+      if ((ctx.e.target as HTMLElement).tabIndex >= 0) return;
+      if (props.multiple) tagInputRef.value.focus();
+    };
 
     return {
       classPrefix,
@@ -59,6 +98,7 @@ export default defineComponent({
       renderTNodeJSX,
       renderSelectSingle,
       renderSelectMultiple,
+      onOverlayClick,
       onInnerPopupVisibleChange,
     };
   },
@@ -78,6 +118,7 @@ export default defineComponent({
         hideEmptyPopup={true}
         {...{
           onVisibleChange: this.onInnerPopupVisibleChange,
+          onOverlayClick: this.onOverlayClick,
           ...(this.popupProps as TdSelectInputProps['popupProps']),
           overlayInnerStyle: this.tOverlayInnerStyle,
         }}
@@ -87,6 +128,7 @@ export default defineComponent({
               commonInputProps: this.commonInputProps,
               onInnerClear: this.onInnerClear,
               popupVisible: visibleProps.visible,
+              allowInput: this.allowInput,
             })
           : this.renderSelectSingle(visibleProps.visible)}
       </Popup>
@@ -94,14 +136,16 @@ export default defineComponent({
 
     const tipsNode = this.renderTNodeJSX('tips');
 
+    const tipsClasses = [
+      `${this.classPrefix}-input__tips`,
+      `${this.classPrefix}-tips`,
+      `${this.classPrefix}-is-${this.status}`,
+    ];
+
     return (
       <div ref="selectInputRef" class={this.classes}>
         {mainContent}
-        {tipsNode && (
-          <div class={`${this.classPrefix}-input__tips ${this.classPrefix}-input__tips--${this.status || 'normal'}`}>
-            {tipsNode}
-          </div>
-        )}
+        {tipsNode && <div class={tipsClasses}>{tipsNode}</div>}
       </div>
     );
   },

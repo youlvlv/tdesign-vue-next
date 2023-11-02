@@ -13,6 +13,9 @@ import { commonProps } from '../constants';
 import { TdUploadProps, UploadFile } from '../type';
 import { abridgeName } from '../../_common/js/upload/utils';
 import { UploadConfig } from '../../config-provider';
+import { useTNodeJSX } from '../../hooks';
+import Link from '../../link';
+import Image from '../../image';
 
 export interface ImageCardUploadProps extends CommonDisplayFileProps {
   multiple: TdUploadProps['multiple'];
@@ -50,6 +53,8 @@ export default defineComponent({
       ErrorCircleFilledIcon: TdErrorCircleFilledIcon,
     });
 
+    const renderTNodeJSX = useTNodeJSX();
+
     const showTrigger = computed(() => {
       if (multiple.value) {
         return !max.value || displayFiles.value.length < max.value;
@@ -60,11 +65,11 @@ export default defineComponent({
     const renderMainContent = (file: UploadFile, index: number) => {
       return (
         <div class={`${classPrefix.value}-upload__card-content ${classPrefix.value}-upload__card-box`}>
-          <img class={`${classPrefix.value}-upload__card-image`} src={file.url} />
+          <Image class={`${classPrefix.value}-upload__card-image`} src={file.url || file.raw} error="" />
           <div class={`${classPrefix.value}-upload__card-mask`}>
             <span class={`${classPrefix.value}-upload__card-mask-item`} onClick={(e) => e.stopPropagation()}>
               <ImageViewer
-                images={displayFiles.value.map((t: UploadFile) => t.url)}
+                images={displayFiles.value.map((t: UploadFile) => t.url || t.raw)}
                 defaultIndex={index}
                 trigger={(h, { open }) => {
                   return (
@@ -118,24 +123,41 @@ export default defineComponent({
     };
 
     return () => {
+      // render custom UI with fileListDisplay
+      const customList = renderTNodeJSX('fileListDisplay', {
+        params: {
+          files: displayFiles.value,
+        },
+      });
+      if (customList) return customList;
+
       const cardItemClasses = `${classPrefix.value}-upload__card-item ${classPrefix.value}-is-background`;
       return (
         <div>
           <ul class={`${classPrefix.value}-upload__card`}>
             {displayFiles.value?.map((file: UploadFile, index: number) => {
+              const fileNameClassName = `${classPrefix.value}-upload__card-name`;
+
               const loadCard = `${classPrefix.value}-upload__card-container ${classPrefix.value}-upload__card-box`;
               const fileName = props.abridgeName ? abridgeName(file.name, ...props.abridgeName) : file.name;
               return (
                 <li class={cardItemClasses} key={index}>
                   {file.status === 'progress' && renderProgressFile(file, loadCard)}
                   {file.status === 'fail' && renderFailFile(file, index, loadCard)}
-                  {!['progress', 'fail'].includes(file.status) && file.url && renderMainContent(file, index)}
-                  <div class={`${classPrefix.value}-upload__card-name`}>{fileName}</div>
+                  {!['progress', 'fail'].includes(file.status) && renderMainContent(file, index)}
+                  {fileName &&
+                    (file.url ? (
+                      <Link href={file.url} class={fileNameClassName} target="_blank" hover="color" size="small">
+                        {fileName}
+                      </Link>
+                    ) : (
+                      <span class={fileNameClassName}>{fileName}</span>
+                    ))}
                 </li>
               );
             })}
 
-            {showTrigger.value && (
+            {showTrigger.value && !props.disabled && (
               <li class={cardItemClasses} onClick={props.triggerUpload}>
                 <div
                   class={[

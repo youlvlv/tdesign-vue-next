@@ -32,12 +32,15 @@ export default defineComponent({
     const selectProvider = inject(selectInjectKey);
     const formDisabled = useFormDisabled();
 
+    const isReachMax = computed(
+      () =>
+        selectProvider.value.max !== 0 &&
+        selectProvider.value.max <= (selectProvider.value.selectValue as SelectValue[]).length,
+    );
     const disabled = computed(
       () =>
         formDisabled.value ||
-        (props.multiple &&
-          selectProvider.value.max <= (selectProvider.value.selectValue as SelectValue[]).length &&
-          selectProvider.value.max !== 0),
+        (props.multiple && isReachMax.value && !isSelected.value && !selectProvider.value.isCheckAll),
     );
 
     const renderContent = useContent();
@@ -67,7 +70,7 @@ export default defineComponent({
         [STATUS.value.disabled]: disabled.value,
         [STATUS.value.selected]: isSelected.value,
         [`${selectName.value}-option__hover`]:
-          (isHover.value || selectProvider.value.hoverIndex === props.index) && !disabled.value && !isSelected.value,
+          (isHover.value || selectProvider.value.hoverIndex === props.index) && !disabled.value,
       },
     ]);
 
@@ -80,7 +83,6 @@ export default defineComponent({
         e.preventDefault();
         return;
       }
-      e.stopPropagation();
 
       if (props.createAble) {
         selectProvider.value.handleCreate?.(props.value);
@@ -157,7 +159,7 @@ export default defineComponent({
           {selectProvider && props.multiple ? (
             <Checkbox
               checked={isSelected.value}
-              disabled={disabled.value && !isSelected.value}
+              disabled={disabled.value}
               onChange={handleCheckboxClick}
               indeterminate={isIndeterminate.value}
             >

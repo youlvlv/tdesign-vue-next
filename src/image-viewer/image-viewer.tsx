@@ -14,6 +14,7 @@ import { TdImageViewerProps } from './type';
 import { useMirror, useRotate, useScale } from './hooks';
 import { formatImages, getOverlay } from './utils';
 import { EVENT_CODE } from './const';
+import Image from '../image';
 
 export default defineComponent({
   name: 'TImageViewer',
@@ -64,11 +65,13 @@ export default defineComponent({
 
     const prevImage = () => {
       const newIndex = indexValue.value - 1;
+      onRest();
       setIndexValue(newIndex < 0 ? 0 : newIndex, { trigger: 'prev' });
     };
 
     const nextImage = () => {
       const newIndex = indexValue.value + 1;
+      onRest();
       setIndexValue(newIndex >= images.value.length ? indexValue.value : newIndex, { trigger: 'next' });
     };
 
@@ -121,6 +124,8 @@ export default defineComponent({
         if (val) {
           animationEnd.value = false;
           window.addEventListener('keydown', keydownHandler);
+
+          onRest();
         } else {
           animationTimer.value = setTimeout(() => {
             animationEnd.value = true;
@@ -163,8 +168,7 @@ export default defineComponent({
                   },
                 ]}
               >
-                <img
-                  alt=""
+                <Image
                   src={image.thumbnail || image.mainImage}
                   className={`${COMPONENT_NAME.value}__header-img`}
                   onClick={() => onImgClick(index)}
