@@ -1,7 +1,7 @@
 import { computed, ref, defineComponent, toRefs, nextTick } from 'vue';
 import props from './props';
 import { TdAutoCompleteProps } from './type';
-import Input, { InputProps, TdInputProps } from '../input';
+import TInput, { InputProps, StrInputProps } from '../input';
 import Popup, { PopupProps } from '../popup';
 import useCommonClassName from '../hooks/useCommonClassName';
 import AutoCompleteOptionList from './option-list';
@@ -52,7 +52,7 @@ export default defineComponent({
       return classes;
     });
 
-    const onInputChange: TdInputProps['onChange'] = (value, context) => {
+    const onInputChange: StrInputProps['onChange'] = (value, context) => {
       setTValue(value, context);
     };
 
@@ -65,7 +65,7 @@ export default defineComponent({
       return tProps;
     });
 
-    const onInnerFocus: InputProps['onFocus'] = (value, context) => {
+    const onInnerFocus: StrInputProps['onFocus'] = (value, context) => {
       popupVisible.value = true;
       props.onFocus?.({ ...context, value });
       nextTick(() => {
@@ -73,7 +73,7 @@ export default defineComponent({
       });
     };
 
-    const onInnerBlur: InputProps['onBlur'] = (value, context) => {
+    const onInnerBlur: StrInputProps['onBlur'] = (value, context) => {
       props.onBlur?.({ ...context, value });
     };
 
@@ -85,7 +85,7 @@ export default defineComponent({
       props.onCompositionstart?.({ ...context, value });
     };
 
-    const onInnerEnter: InputProps['onEnter'] = (value, context) => {
+    const onInnerEnter: StrInputProps['onEnter'] = (value, context) => {
       props.onEnter?.({ ...context, value });
     };
 
@@ -105,7 +105,8 @@ export default defineComponent({
     return () => {
       // 触发元素
       const triggerNode = renderContent('default', 'triggerElement') || (
-        <Input
+        <TInput
+          borderless={props.borderless}
           placeholder={props.placeholder ?? global.value.placeholder}
           tips={props.tips}
           status={props.status}

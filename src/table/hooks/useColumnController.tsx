@@ -21,9 +21,10 @@ import { useTNodeJSX } from '../../hooks';
 export function getColumnKeys(columns: PrimaryTableCol[], keys = new Set<string>()) {
   for (let i = 0, len = columns.length; i < len; i++) {
     const col = columns[i];
-    col.colKey && keys.add(col.colKey);
     if (col.children?.length) {
       getColumnKeys(col.children, keys);
+    } else {
+      col.colKey && keys.add(col.colKey);
     }
   }
   return keys;
@@ -215,7 +216,7 @@ export default function useColumnController(props: TdPrimaryTableProps, context:
         if (columnControllerVisible.value === undefined) {
           dialogInstance.value.hide();
         } else {
-          props.onColumnControllerVisibleChange?.(false, { trigger: 'cancel' });
+          props.onColumnControllerVisibleChange?.(false, { trigger: 'confirm' });
           context.emit('update:columnControllerVisible', false);
         }
       },
@@ -224,7 +225,7 @@ export default function useColumnController(props: TdPrimaryTableProps, context:
         if (columnControllerVisible.value === undefined) {
           dialogInstance.value.hide();
         } else {
-          props.onColumnControllerVisibleChange?.(false, { trigger: 'confirm' });
+          props.onColumnControllerVisibleChange?.(false, { trigger: 'cancel' });
           context.emit('update:columnControllerVisible', false);
         }
       },

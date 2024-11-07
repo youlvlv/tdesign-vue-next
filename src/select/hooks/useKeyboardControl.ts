@@ -14,6 +14,7 @@ export type useKeyboardControlType = {
   setInnerPopupVisible: ChangeHandler<boolean, [context: PopupVisibleChangeContext]>;
   selectPanelRef: Ref<{ isVirtual: boolean; innerRef: HTMLDivElement }>;
   isFilterable: ComputedRef<boolean>;
+  isRemoteSearch: ComputedRef<boolean>;
   getSelectedOptions: (selectValue?: SelectValue[] | SelectValue) => TdOptionProps[];
   setInnerValue: Function;
   innerValue: Ref<SelectValue[]>;
@@ -30,6 +31,7 @@ export default function useKeyboardControl({
   setInnerPopupVisible,
   selectPanelRef,
   isFilterable,
+  isRemoteSearch,
   getSelectedOptions,
   setInnerValue,
   innerValue,
@@ -38,9 +40,9 @@ export default function useKeyboardControl({
   max,
 }: useKeyboardControlType) {
   const hoverIndex = ref(-1);
+  const filteredOptions = ref([]); // 处理普通场景选项过滤键盘选中的问题
   const virtualFilteredOptions = ref([]); // 处理虚拟滚动下选项过滤通过键盘选择的问题
   const classPrefix = usePrefixClass();
-
   const handleKeyDown = (e: KeyboardEvent) => {
     const optionsListLength = displayOptions.value.length;
     let newIndex = hoverIndex.value;
@@ -61,6 +63,7 @@ export default function useKeyboardControl({
         break;
       case 'ArrowDown':
         e.preventDefault();
+
         if (hoverIndex.value === -1 || hoverIndex.value >= optionsListLength - 1) {
           newIndex = 0;
         } else {
@@ -73,32 +76,37 @@ export default function useKeyboardControl({
         break;
       case 'Enter':
         if (hoverIndex.value === -1) break;
+
+        let finalOptions =
+          selectPanelRef.value.isVirtual && isFilterable.value && virtualFilteredOptions.value.length
+            ? virtualFilteredOptions.value
+            : isRemoteSearch.value
+            ? optionsList.value
+            : filteredOptions.value;
+
+        if (!finalOptions.length) finalOptions = optionsList.value;
         if (!innerPopupVisible.value) {
           setInnerPopupVisible(true, { e });
           break;
         }
-        const filteredOptions =
-          selectPanelRef.value.isVirtual && isFilterable.value && virtualFilteredOptions.value.length
-            ? virtualFilteredOptions.value
-            : optionsList.value;
 
         if (!multiple) {
-          const selectedOptions = getSelectedOptions(filteredOptions[hoverIndex.value].value);
-          setInnerValue(filteredOptions[hoverIndex.value].value, {
+          const selectedOptions = getSelectedOptions(finalOptions[hoverIndex.value].value);
+          setInnerValue(finalOptions[hoverIndex.value].value, {
             option: selectedOptions?.[0],
-            selectedOptions: getSelectedOptions(filteredOptions[hoverIndex.value].value),
+            selectedOptions: getSelectedOptions(finalOptions[hoverIndex.value].value),
             trigger: 'check',
             e,
           });
           setInnerPopupVisible(false, { e });
         } else {
           if (hoverIndex.value === -1) return;
-          const optionValue = filteredOptions[hoverIndex.value]?.value;
+          const optionValue = finalOptions[hoverIndex.value]?.value;
 
           if (!optionValue) return;
           const newValue = getNewMultipleValue(innerValue.value, optionValue);
 
-          if (newValue.value.length > max) return; // 如果已选达到最大值 则不处理
+          if (max > 0 && newValue.value.length > max) return; // 如果已选达到最大值 则不处理
           const selectedOptions = getSelectedOptions(newValue.value);
           setInnerValue(newValue.value, {
             option: selectedOptions.find((v) => v.value == optionValue),
@@ -106,6 +114,7 @@ export default function useKeyboardControl({
             trigger: newValue.isCheck ? 'check' : 'uncheck',
             e,
           });
+          filteredOptions.value = [];
         }
         break;
       case 'Escape':
@@ -119,6 +128,7 @@ export default function useKeyboardControl({
       // 展开重新恢复初始值
       hoverIndex.value = -1;
       virtualFilteredOptions.value = [];
+      filteredOptions.value = [];
     }
   });
 
@@ -126,7 +136,7 @@ export default function useKeyboardControl({
   watch(hoverIndex, (index) => {
     const optionHeight = selectPanelRef.value?.innerRef?.querySelector(
       `.${classPrefix.value}-select-option`,
-    ).clientHeight;
+    )?.clientHeight;
 
     const scrollHeight = optionHeight * index;
 
@@ -140,5 +150,6 @@ export default function useKeyboardControl({
     hoverIndex,
     handleKeyDown,
     virtualFilteredOptions,
+    filteredOptions,
   };
 }

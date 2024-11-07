@@ -9,7 +9,10 @@ import { PropType } from 'vue';
 
 export default {
   /** 是否禁用组件 */
-  disabled: Boolean,
+  disabled: {
+    type: Boolean,
+    default: undefined,
+  },
   /** 用于控制数字输入框组件，值为 false 表示不显示数字输入框；值为 true 表示呈现默认数字输入框；值类型为 Object 表示透传属性到数字输入框组件 */
   inputNumberProps: {
     type: [Boolean, Object] as PropType<TdSliderProps['inputNumberProps']>,
@@ -72,4 +75,6 @@ export default {
   },
   /** 滑块值变化时触发 */
   onChange: Function as PropType<TdSliderProps['onChange']>,
+  /** 松开拖动`mouseup` 或点击滑块条时触发，适合不希望在拖动滑块过程频繁触发回调的场景实用 */
+  onChangeEnd: Function as PropType<TdSliderProps['onChangeEnd']>,
 };

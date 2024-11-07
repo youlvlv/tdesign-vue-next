@@ -18,12 +18,15 @@ export default {
   borderless: Boolean,
   /** 是否可清空 */
   clearable: Boolean,
-  /** 标签过多的情况下，折叠项内容，默认为 `+N`。如果需要悬浮就显示其他内容，可以使用 `collapsedItems` 自定义。`value` 表示所有标签值，`collapsedTags` 表示折叠标签值，`count` 表示折叠的数量 */
+  /** 标签过多的情况下，折叠项内容，默认为 `+N`。如果需要悬浮就显示其他内容，可以使用 `collapsedItems` 自定义。`value` 表示所有标签值，`collapsedSelectedItems` 表示折叠标签值，`count` 表示折叠的数量，`onClose` 表示移除标签的事件回调 */
   collapsedItems: {
     type: Function as PropType<TdSelectInputProps['collapsedItems']>,
   },
   /** 是否禁用 */
-  disabled: Boolean,
+  disabled: {
+    type: Boolean,
+    default: undefined,
+  },
   /** 透传 Input 输入框组件全部属性 */
   inputProps: {
     type: Object as PropType<TdSelectInputProps['inputProps']>,
@@ -74,8 +77,23 @@ export default {
   },
   /** 是否显示下拉框，非受控属性 */
   defaultPopupVisible: Boolean,
+  /** 组件前置图标 */
+  prefixIcon: {
+    type: Function as PropType<TdSelectInputProps['prefixIcon']>,
+  },
   /** 只读状态，值为真会隐藏输入框，且无法打开下拉框 */
   readonly: Boolean,
+  /** 多选且可搜索时，是否在选中一个选项后保留当前的搜索关键词 */
+  reserveKeyword: Boolean,
+  /** 组件尺寸 */
+  size: {
+    type: String as PropType<TdSelectInputProps['size']>,
+    default: 'medium' as TdSelectInputProps['size'],
+    validator(val: TdSelectInputProps['size']): boolean {
+      if (!val) return true;
+      return ['small', 'medium', 'large'].includes(val);
+    },
+  },
   /** 输入框状态 */
   status: {
     type: String as PropType<TdSelectInputProps['status']>,
@@ -112,15 +130,11 @@ export default {
   /** 全部标签值。值为数组表示多个标签，值为非数组表示单个数值 */
   value: {
     type: [String, Number, Boolean, Object, Array, Date] as PropType<TdSelectInputProps['value']>,
-    default: undefined,
+    default: undefined as TdSelectInputProps['value'],
   },
   /** 自定义值呈现的全部内容，参数为所有标签的值 */
   valueDisplay: {
     type: [String, Function] as PropType<TdSelectInputProps['valueDisplay']>,
-  },
-  /** 自定义值呈现的选项，useInputDisplay表示在使用时仍然使用组件自带的输入回显实现，usePlaceholder表示在使用时仍然使用自带的占位符实现 */
-  valueDisplayOptions: {
-    type: Object as PropType<TdSelectInputProps['valueDisplayOptions']>,
   },
   /** 失去焦点时触发，`context.inputValue` 表示输入框的值；`context.tagInputValue` 表示标签输入框的值 */
   onBlur: Function as PropType<TdSelectInputProps['onBlur']>,

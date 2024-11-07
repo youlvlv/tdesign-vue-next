@@ -2,8 +2,15 @@ import { ref, computed, watch, nextTick, toRefs, inject } from 'vue';
 import { InputValue, TdInputProps } from './type';
 import { FormItemInjectionKey } from '../form/const';
 import useVModel from '../hooks/useVModel';
-import { useFormDisabled } from '../form/hooks';
+import { useDisabled } from '../hooks/useDisabled';
 import useLengthLimit from './useLengthLimit';
+
+export function getOutputValue(val: InputValue, type: TdInputProps['type']) {
+  if (type === 'number') {
+    return val || val === 0 ? Number(val) : undefined;
+  }
+  return val;
+}
 
 export interface ExtendsTdInputProps extends TdInputProps {
   showInput: boolean;
@@ -17,7 +24,7 @@ export default function useInput(props: ExtendsTdInputProps, expose: (exposed: R
   const compositionValue = ref<InputValue>();
   const clearIconRef = ref(null);
   const innerClickElement = ref();
-  const disabled = useFormDisabled();
+  const disabled = useDisabled();
   const [innerValue, setInnerValue] = useVModel(value, modelValue, props.defaultValue, props.onChange);
 
   const isHover = ref(false);
@@ -61,7 +68,8 @@ export default function useInput(props: ExtendsTdInputProps, expose: (exposed: R
   };
 
   const emitClear = ({ e }: { e: MouseEvent }) => {
-    setInnerValue('', { e, trigger: 'clear' });
+    const val = props.type === 'number' ? undefined : '';
+    setInnerValue(val, { e, trigger: 'clear' });
     props.onClear?.({ e });
   };
 
@@ -70,6 +78,7 @@ export default function useInput(props: ExtendsTdInputProps, expose: (exposed: R
   };
 
   const emitPassword = () => {
+    if (disabled.value) return;
     const toggleType = renderType.value === 'password' ? 'text' : 'password';
     renderType.value = toggleType;
   };
@@ -89,13 +98,18 @@ export default function useInput(props: ExtendsTdInputProps, expose: (exposed: R
     const { target } = e;
     let val = (target as HTMLInputElement).value;
     // over length: allow delete; not add
-    if (props.type !== 'number' && val.length > innerValue.value?.length) {
+    if (props.type !== 'number' && typeof innerValue.value === 'string' && val.length > innerValue.value?.length) {
       val = getValueByLimitNumber(val);
     }
-    setInnerValue(val, { e } as { e: InputEvent; trigger: 'input' });
+    setInnerValue(getOutputValue(val, props.type), { e, trigger: 'input' });
     // 受控
     nextTick(() => {
-      setInputElValue(innerValue.value);
+      // type = 'number'时, 解决小数点后面有 0 自动删除的问题
+      if (props.type === 'number' && /\.(\d+)?0$/.test(val)) {
+        setInputElValue(val);
+      } else {
+        setInputElValue(innerValue.value);
+      }
     });
   };
 
@@ -125,10 +139,12 @@ export default function useInput(props: ExtendsTdInputProps, expose: (exposed: R
 
   const formItem = inject(FormItemInjectionKey, undefined);
   const formatAndEmitBlur = (e: FocusEvent) => {
-    if (isHover.value) return;
     if (!isClearIcon()) {
       if (props.format) {
-        inputValue.value = props.format(innerValue.value);
+        inputValue.value =
+          typeof innerValue.value === 'number' || props.type === 'number'
+            ? innerValue.value
+            : props.format(innerValue.value);
       }
       focused.value = false;
       props.onBlur?.(innerValue.value, { e });
@@ -142,15 +158,16 @@ export default function useInput(props: ExtendsTdInputProps, expose: (exposed: R
     isComposition.value = false;
     compositionValue.value = '';
     inputValueChangeHandle(e);
-    props.onCompositionend?.(innerValue.value, { e });
+    props.onCompositionend?.(String(innerValue.value), { e });
   };
+
   const onHandleCompositionstart = (e: CompositionEvent) => {
     isComposition.value = true;
     const {
       currentTarget: { value },
     }: any = e;
     compositionValue.value = value;
-    props.onCompositionstart?.(innerValue.value, { e });
+    props.onCompositionstart?.(String(innerValue.value), { e });
   };
 
   const onRootClick = (e: MouseEvent) => {
@@ -173,15 +190,16 @@ export default function useInput(props: ExtendsTdInputProps, expose: (exposed: R
   watch(
     innerValue,
     (val, oldVal) => {
+      const isNumberType = props.type === 'number';
       // 初始化时，如果有 format 函数，需要对 value 进行格式化
-      if (oldVal === undefined && props.format) {
+      if (oldVal === undefined && props.format && typeof val !== 'number' && !isNumberType) {
         inputValue.value = props.format(val);
       } else {
         inputValue.value = val;
       }
       // limit props value
-      const newVal = getValueByLimitNumber(val);
-      if (newVal !== val && props.type !== 'number') {
+      const newVal = typeof val === 'number' ? val : getValueByLimitNumber(val);
+      if (newVal !== val && !isNumberType) {
         setInnerValue(newVal, { trigger: 'initial' });
       }
     },

@@ -1,4 +1,4 @@
-import { computed, Slots, VNode, Ref, ref } from 'vue';
+import { computed, Slots, Ref, ref } from 'vue';
 import isArray from 'lodash/isArray';
 import get from 'lodash/get';
 import isFunction from 'lodash/isFunction';
@@ -18,7 +18,6 @@ export const useSelectOptions = (props: TdSelectProps, keys: Ref<KeysType>, inpu
 
   const options = computed(() => {
     let dynamicIndex = 0;
-
     // 统一处理 keys,处理通用数据
     const innerOptions: UniOption[] =
       props.options?.map((option) => {
@@ -29,7 +28,7 @@ export const useSelectOptions = (props: TdSelectProps, keys: Ref<KeysType>, inpu
             index: dynamicIndex,
             label: get(option, label),
             value: get(option, value),
-            disabled: get(option, disabled),
+            disabled: get(option, disabled) || false,
           };
           dynamicIndex++;
           return res;
@@ -54,9 +53,9 @@ export const useSelectOptions = (props: TdSelectProps, keys: Ref<KeysType>, inpu
           ...group.props,
           children: [] as TdOptionProps[],
         };
-        const res = (group.children as Slots).default();
-        if (!(isArray(res) && !!res[0]?.children)) continue;
-        for (const child of res?.[0]?.children as VNode[]) {
+        const res = getChildComponentSlots('Option', group.children as Slots);
+        if (!isArray(res)) continue;
+        for (const child of res) {
           groupOption.children.push({
             ...child.props,
             slots: child.children,
@@ -106,6 +105,8 @@ export const useSelectOptions = (props: TdSelectProps, keys: Ref<KeysType>, inpu
   });
 
   const displayOptions = computed(() => {
+    if (props.onSearch && props.filterable) return options.value; // 远程搜索时，不执行内部的过滤，不干预用户的自行处理，如输入首字母搜索中文的场景等
+
     if (!inputValue.value || !(props.filterable || isFunction(props.filter))) return options.value;
 
     const filterMethods = (option: SelectOption) => {

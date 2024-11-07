@@ -1,28 +1,28 @@
-import upperFirst from 'lodash/upperFirst';
 import isFunction from 'lodash/isFunction';
+import upperFirst from 'lodash/upperFirst';
+import { renderTNodeJSX } from '../utils/render-tnode';
 import {
   defineComponent,
-  TreeNode,
-  useConfig,
-  usePrefixClass,
-  TypeTreeOptionData,
-  TypeTNodeReturnValue,
-  TypeCreateElement,
-  TransitionGroup,
   getCreateElement,
   getScopedSlots,
+  TransitionGroup,
+  TreeNode,
+  TypeCreateElement,
   TypeStyles,
+  TypeTNodeReturnValue,
+  TypeTreeOptionData,
+  useConfig,
+  usePrefixClass,
 } from './adapt';
-import props from './props';
-import { TreeNodeValue, TreeNodeState, TypeTreeNodeModel } from './tree-types';
+import useDragHandle from './hooks/useDragHandle';
+import useTreeAction from './hooks/useTreeAction';
+import useTreeNodes from './hooks/useTreeNodes';
+import useTreeScroll from './hooks/useTreeScroll';
+import useTreeState from './hooks/useTreeState';
 import useTreeStore from './hooks/useTreeStore';
 import useTreeStyles from './hooks/useTreeStyles';
-import useTreeState from './hooks/useTreeState';
-import useTreeAction from './hooks/useTreeAction';
-import useTreeScroll from './hooks/useTreeScroll';
-import useTreeNodes from './hooks/useTreeNodes';
-import useDragHandle from './hooks/useDragHandle';
-import { renderTNodeJSX } from '../utils/render-tnode';
+import props from './props';
+import { TreeNodeState, TreeNodeValue, TypeTreeNodeModel } from './tree-types';
 import { getNode } from './util';
 
 // 2022.11.02 tabliang 备注
@@ -50,11 +50,11 @@ export default defineComponent({
     // 用于 hooks 传递数据
     const { state } = useTreeState(props, context);
     const { treeContentRef, isScrolling } = state;
-    const { store, updateStoreConfig, rebuild, checkFilterExpand } = useTreeStore(state);
+    const { store, updateStoreConfig, rebuild } = useTreeStore(state);
 
     useDragHandle(state);
     const { setActived, setExpanded, setChecked } = useTreeAction(state);
-    const { onInnerVirtualScroll, virtualConfig } = useTreeScroll(state);
+    const { onInnerVirtualScroll, virtualConfig, scrollToElement } = useTreeScroll(state);
     const { renderTreeNodes, nodesEmpty } = useTreeNodes(state);
     const { treeClasses, treeContentStyles, scrollStyles, cursorStyles } = useTreeStyles(state);
 
@@ -71,7 +71,6 @@ export default defineComponent({
       treeContentRef,
 
       rebuild,
-      checkFilterExpand,
       updateStoreConfig,
       setActived,
       setExpanded,
@@ -85,34 +84,26 @@ export default defineComponent({
       scrollStyles,
       cursorStyles,
       virtualConfig,
-      scrollToElement: virtualConfig.scrollToElement,
+      scrollToElement: scrollToElement, // deprecated
+      scrollTo: scrollToElement,
     };
   },
 
   watch: {
     // 实测发现，composition api 中的 refsProps watch ，回调时间迟于 $nextTick 回调
-    // 因此改为在这里绑定属性监听，实测这里的 watch 回调，早于 $nextTick 回调发生
+    // 因此改为在这里绑定 data 属性监听，实测这里的 watch 回调，早于 $nextTick 回调发生
     data(list) {
       this.rebuild(list);
-    },
-    expanded(nVal: TreeNodeValue[]) {
-      this.store.replaceExpanded(nVal);
-    },
-    actived(nVal: TreeNodeValue[]) {
-      this.store.replaceActived(nVal);
-    },
-    filter(nVal, previousVal) {
-      this.checkFilterExpand(nVal, previousVal);
-    },
-    keys(keys) {
-      this.store.setConfig({
-        keys,
-      });
     },
   },
   // 在 methods 提供公共方法
   // 实例上可以直接访问
   methods: {
+    // 刷新树节点状态
+    refresh(): void {
+      this.store.refreshState();
+    },
+    // 设置目标节点状态
     setItem(value: TreeNodeValue, options: TreeNodeState): void {
       const node: TreeNode = this.store.getNode(value);
       const spec = options;
@@ -132,14 +123,19 @@ export default defineComponent({
         node.set(spec);
       }
     },
+    // 获取目标节点
     getItem(value: TreeNodeValue): TypeTreeNodeModel {
       const node: TreeNode = this.store.getNode(value);
       return node?.getModel();
     },
+    // 无 value 参数: 获取 tree 所有节点，一维结构
+    // 传递 value 参数: 获取节点值对应的目标节点下，包含自己在内的所有子节点
     getItems(value?: TreeNodeValue): TypeTreeNodeModel[] {
       const nodes = this.store.getNodes(value);
       return nodes.map((node: TreeNode) => node.getModel());
     },
+    // 将节点数据插入到目标节点
+    // 无目标节点，则插入为根节点
     appendTo(para?: TreeNodeValue, item?: TypeTreeOptionData | TypeTreeOptionData[]) {
       const { store } = this;
       let list = [];
@@ -158,6 +154,7 @@ export default defineComponent({
         }
       });
     },
+    // 在指定节点之前插入单个节点数据
     insertBefore(value: TreeNodeValue, item: TypeTreeOptionData) {
       const { store } = this;
       const val = item?.value || '';
@@ -168,6 +165,7 @@ export default defineComponent({
         store.insertBefore(value, item);
       }
     },
+    // 在指定节点之后插入单个节点数据
     insertAfter(value: TreeNodeValue, item: TypeTreeOptionData) {
       const { store } = this;
       const val = item?.value || '';
@@ -178,20 +176,25 @@ export default defineComponent({
         store.insertAfter(value, item);
       }
     },
+    // 移除目标节点
     remove(value?: TreeNodeValue) {
       return this.store.remove(value);
     },
+    // 获取节点在当前层级的 index
     getIndex(value: TreeNodeValue): number {
       return this.store.getNodeIndex(value);
     },
+    // 获取父节点
     getParent(value: TreeNodeValue): TypeTreeNodeModel {
       const node = this.store.getParent(value);
       return node?.getModel();
     },
+    // 获取父节点列表
     getParents(value: TreeNodeValue): TypeTreeNodeModel[] {
       const nodes = this.store.getParents(value);
       return nodes.map((node: TreeNode) => node.getModel());
     },
+    // 获取路径节点列表
     getPath(value: TreeNodeValue): TypeTreeNodeModel[] {
       const node = this.store.getNode(value);
       let pathNodes: TypeTreeNodeModel[] = [];
@@ -199,6 +202,48 @@ export default defineComponent({
         pathNodes = node.getPath().map((node: TreeNode) => node.getModel());
       }
       return pathNodes;
+    },
+    // 提供树结构原始数据
+    getTreeData(value?: TreeNodeValue): TypeTreeOptionData[] {
+      let list: TreeNode[] = [];
+      if (value) {
+        const node = this.store.getNode(value);
+        if (!node) return [];
+        list = this.store.getNodes(value);
+      } else {
+        list = this.store.getNodes();
+      }
+      // 一维结构树节点转树结构数据
+      const nodeMap = {};
+      const treeNodes: TypeTreeOptionData[] = [];
+      list.forEach((item: TreeNode) => {
+        const { value } = item;
+        const itemData = {
+          ...item.data,
+          value,
+        };
+        if (itemData.children !== true) {
+          delete itemData.children;
+        }
+        nodeMap[value] = itemData;
+        const parent = item.getParent();
+        if (!parent) {
+          // 是根节点
+          treeNodes.push(itemData);
+        } else {
+          const parentData = nodeMap[parent.value];
+          if (!parentData) {
+            // 为目标节点范围内的根节点
+            treeNodes.push(itemData);
+          } else {
+            if (!Array.isArray(parentData.children)) {
+              parentData.children = [];
+            }
+            parentData.children.push(itemData);
+          }
+        }
+      });
+      return treeNodes;
     },
   },
   render(h: TypeCreateElement) {

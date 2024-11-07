@@ -1,6 +1,10 @@
 import { mount } from '@vue/test-utils';
 import Tree from '@/src/tree/index.ts';
 import { delay } from './kit';
+import { ref } from './adapt';
+import { Icon } from 'tdesign-icons-vue-next';
+import { nextTick } from 'vue';
+import { get } from 'lodash';
 
 describe('Tree:expand', () => {
   vi.useRealTimers();
@@ -148,6 +152,58 @@ describe('Tree:expand', () => {
       expect(t1d1.classes('t-tree__item--visible')).toBe(true);
 
       const t2d1 = wrapper.find('[data-value="t2.1"]');
+      expect(t2d1.exists()).toBe(true);
+      expect(t2d1.classes('t-tree__item--visible')).toBe(false);
+      expect(t2d1.classes('t-tree__item--hidden')).toBe(true);
+    });
+
+    it('操作 expanded 数组可变更展开节点', async () => {
+      const data = [
+        {
+          value: 't1',
+          children: [
+            {
+              value: 't1.1',
+            },
+          ],
+        },
+        {
+          value: 't2',
+          children: [
+            {
+              value: 't2.1',
+            },
+          ],
+        },
+      ];
+      const refExpanded = ref(['t2']);
+      const wrapper = mount({
+        render() {
+          return <Tree data={data} expanded={refExpanded.value} transition={false}></Tree>;
+        },
+      });
+
+      expect(wrapper.find('[data-value="t1.1"]').exists()).toBe(false);
+      expect(wrapper.find('[data-value="t2.1"]').exists()).toBe(true);
+
+      await delay(1);
+
+      let t1d1 = wrapper.find('[data-value="t1.1"]');
+      const t2d1 = wrapper.find('[data-value="t2.1"]');
+      expect(t1d1.exists()).toBe(false);
+      expect(t2d1.exists()).toBe(true);
+      expect(t2d1.classes('t-tree__item--visible')).toBe(true);
+      expect(t2d1.classes('t-tree__item--hidden')).toBe(false);
+
+      refExpanded.value.push('t1');
+      await delay(1);
+      t1d1 = wrapper.find('[data-value="t1.1"]');
+      expect(t1d1.exists()).toBe(true);
+      expect(t1d1.classes('t-tree__item--visible')).toBe(true);
+      expect(t1d1.classes('t-tree__item--hidden')).toBe(false);
+
+      refExpanded.value.shift();
+      await delay(1);
       expect(t2d1.exists()).toBe(true);
       expect(t2d1.classes('t-tree__item--visible')).toBe(false);
       expect(t2d1.classes('t-tree__item--hidden')).toBe(true);
@@ -321,6 +377,37 @@ describe('Tree:expand', () => {
       wrapper.find('[data-value="t1"] .t-tree__icon').trigger('click');
       await delay(10);
       expect(wrapper.find('[data-value="t1.1"]').exists()).toBe(true);
+    });
+
+    it('自定义图标-点击父节点图标可触发展开子节点', async () => {
+      const data = [
+        {
+          value: 't1',
+          children: [
+            {
+              value: 't1.1',
+            },
+          ],
+        },
+      ];
+      const wrapper = mount({
+        render() {
+          return <Tree transition={false} data={data} icon={() => <Icon name="folder" />}></Tree>;
+        },
+      });
+      //  测试: 点击一级 一级展开 二级存在
+      wrapper.find('[data-value="t1"] .t-tree__icon').trigger('click');
+      await delay(10);
+      const t1d1 = wrapper.find('[data-value="t1.1"]');
+      expect(t1d1.attributes('class')).toContain('t-tree__item--visible');
+      const t1 = wrapper.find('[data-value="t1"]');
+      expect(t1.attributes('class')).toContain('t-tree__item--open');
+
+      //  测试:点击二级 二级状态不展开
+      wrapper.find('[data-value="t1.1"] .t-tree__icon').trigger('click');
+      await delay(10);
+      const t1d1_two = wrapper.find('[data-value="t1.1"]');
+      expect(t1d1_two.attributes('class')).not.toContain('t-tree__item--open');
     });
 
     it('点击已展开的父节点图标，可触发收起子节点', async () => {

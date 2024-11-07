@@ -13,16 +13,18 @@ import {
 import merge from 'lodash/merge';
 import isUndefined from 'lodash/isUndefined';
 
-import { getCharacterLength, omit } from '../utils/helper';
+import { omit } from '../utils/helper';
 import calcTextareaHeight from './calcTextareaHeight';
 import { FormItemInjectionKey } from '../form/const';
 import setStyle from '../_common/js/utils/set-style';
+import { getCharacterLength } from '../_common/js/utils/helper';
 
 // hooks
 import useVModel from '../hooks/useVModel';
-import { useFormDisabled } from '../form/hooks';
+import { useDisabled } from '../hooks/useDisabled';
 import { useTNodeJSX } from '../hooks/tnode';
 import { usePrefixClass, useCommonClassName } from '../hooks/useConfig';
+import useLengthLimit from '../input/useLengthLimit';
 
 import props from './props';
 import type { TextareaValue, TdTextareaProps } from './type';
@@ -50,7 +52,7 @@ export default defineComponent({
 
     const { value, modelValue } = toRefs(props);
     const [innerValue, setInnerValue] = useVModel(value, modelValue, props.defaultValue, props.onChange);
-    const disabled = useFormDisabled();
+    const disabled = useDisabled();
     const textareaStyle = ref<CSSProperties>({});
 
     const refTextareaElem = ref<HTMLTextAreaElement>();
@@ -113,8 +115,8 @@ export default defineComponent({
 
     const eventDeal = (name: 'keydown' | 'keyup' | 'keypress' | 'change', e: KeyboardEvent | FocusEvent) => {
       if (disabled.value) return;
-      const _name = `on${name[0].toUpperCase()}${name.slice(1)}`;
-      props[_name]?.(innerValue.value, { e });
+      const eventName = `on${name[0].toUpperCase()}${name.slice(1)}`;
+      props[eventName]?.(innerValue.value, { e });
     };
 
     const emitKeyDown = (e: KeyboardEvent) => {
@@ -136,6 +138,7 @@ export default defineComponent({
 
     const formItem = inject(FormItemInjectionKey, undefined);
     const emitBlur = (e: FocusEvent) => {
+      if (!e.target) return;
       adjustTextareaHeight();
       focused.value = false;
       props.onBlur?.(innerValue.value, { e });
@@ -158,7 +161,7 @@ export default defineComponent({
         disabled: disabled.value,
         readonly: props.readonly,
         placeholder: props.placeholder,
-        maxlength: props.maxlength || undefined,
+        maxlength: (!props.allowInputOverMax && props.maxlength) || undefined,
         name: props.name || undefined,
       });
     });
@@ -169,6 +172,16 @@ export default defineComponent({
       }
       return characterInfo;
     });
+
+    const limitParams = computed(() => ({
+      value: [undefined, null].includes(innerValue.value) ? undefined : String(innerValue.value),
+      status: props.status,
+      maxlength: Number(props.maxlength),
+      maxcharacter: props.maxcharacter,
+      allowInputOverMax: props.allowInputOverMax,
+      onValidate: props.onValidate,
+    }));
+    const { tStatus } = useLengthLimit(limitParams);
 
     // watch
     watch(
@@ -223,7 +236,7 @@ export default defineComponent({
       const classes = computed(() => [
         `${name.value}__inner`,
         {
-          [`${prefix.value}-is-${props.status}`]: props.status,
+          [`${prefix.value}-is-${tStatus.value}`]: tStatus.value,
           [STATUS.value.disabled]: disabled.value,
           [STATUS.value.focused]: focused.value,
           [`${prefix.value}-resize-none`]: typeof props.autosize === 'object',

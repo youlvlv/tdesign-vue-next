@@ -55,6 +55,8 @@ export function getRowFixedStyles(
   fixedRows: TdBaseTableProps['fixedRows'],
   rowAndColFixedPosition: RowAndColFixedPosition,
   tableRowFixedClasses: TableRowFixedClasses,
+  // 和虚拟滚动搭配使用时，需要增加 style 的偏移量
+  virtualTranslateY = 0,
 ): { style: Styles; classes: ClassName } {
   if (!fixedRows || !fixedRows.length) return { style: undefined, classes: undefined };
   const fixedTop = rowIndex < fixedRows[0];
@@ -68,8 +70,8 @@ export function getRowFixedStyles(
     [tableRowFixedClasses.withoutBorderBottom]: rowIndex === firstFixedBottomRow - 1,
   };
   const rowStyles = {
-    top: fixedTop ? `${fixedPos.top}px` : undefined,
-    bottom: fixedBottom ? `${fixedPos.bottom}px` : undefined,
+    top: fixedTop ? `${fixedPos.top - virtualTranslateY}px` : undefined,
+    bottom: fixedBottom ? `${fixedPos.bottom + virtualTranslateY}px` : undefined,
   };
   return {
     style: rowStyles,
@@ -273,7 +275,8 @@ export default function useFixed(
       initialColumnMap.set(rowId, { ...thisRowInfo, height: tr?.getBoundingClientRect().height || 0 });
     }
     for (let i = data.length - 1; i >= data.length - fixedBottomRows; i--) {
-      const tr = trList[i] as HTMLElement;
+      // 当虚拟滚动的时候，尾部固定行并非对应数据的 index，需要进行倒推计算
+      const tr = trList[trList.length - (data.length - i)] as HTMLElement;
       const rowId = get(data[i], rowKey);
       const thisRowInfo = initialColumnMap.get(rowId) || {};
       const lastRowId = get(data[i + 1], rowKey);
@@ -375,7 +378,7 @@ export default function useFixed(
     if (!rect) return;
     // 存在纵向滚动条，且固定表头时，需去除滚动条宽度
     const reduceWidth = isFixedHeader.value ? scrollbarWidth.value : 0;
-    tableWidth.value = Math.floor(rect.width - reduceWidth - (props.bordered ? 1 : 0));
+    tableWidth.value = rect.width - reduceWidth - (props.bordered ? 1 : 0);
     const elmRect = tableElmRef?.value?.getBoundingClientRect();
     elmRect?.width && setTableElmWidth(elmRect.width);
   };
@@ -439,6 +442,9 @@ export default function useFixed(
   const getThWidthList = (type?: 'default' | 'calculate') => {
     if (type === 'calculate') {
       const trList = tableContentRef.value?.querySelector('thead')?.children;
+      if (!trList) {
+        return {};
+      }
       return calculateThWidthList(trList);
     }
     return thWidthList.value || {};
@@ -475,7 +481,16 @@ export default function useFixed(
     { immediate: true },
   );
 
-  watch([maxHeight, data, columns, bordered], updateFixedHeader, { immediate: true });
+  watch(
+    [maxHeight, data, columns, bordered, tableContentRef],
+    () => {
+      if (tableContentRef.value) {
+        // 如果不监听元素的ref，会出现watch在ref还没ready的时候触发，此时没有触发这个判断的更新，导致表头消失
+        updateFixedHeader();
+      }
+    },
+    { immediate: true },
+  );
 
   watch(finalColumns, () => {
     resetThWidthList();
@@ -506,7 +521,11 @@ export default function useFixed(
       });
       const rootThWidthList = pick(thWidthList, preColKeys);
       const oldTotalWidth = Object.values(rootThWidthList).reduce((r = 0, n) => r + n);
-      setTableElmWidth(oldTotalWidth - reduceWidth);
+      // 保留原有可能编辑过的列宽度，但是当剩余列过小时，表头小于内容宽，需要缩放回内容宽度
+      // 使用不包含滚动条的可视化区域宽度，意味着当不再溢出的时候，将宽度设置回完整宽度
+      const contentWidth = tableContentRef.value.clientWidth;
+      const widthToReserve = oldTotalWidth - reduceWidth;
+      setTableElmWidth(Math.max(contentWidth, widthToReserve));
     }
   });
 
@@ -519,6 +538,11 @@ export default function useFixed(
     if (isFixedColumn.value || isFixedHeader.value) {
       updateFixedStatus();
       updateColumnFixedShadow(tableContentRef.value, { skipScrollLimit: true });
+    }
+
+    // auto 布局下，同步表头列宽，避免 affix 表头列宽不对齐
+    if (tableLayout.value === 'auto') {
+      updateThWidthList(getThWidthList('calculate'));
     }
   };
 
@@ -536,7 +560,7 @@ export default function useFixed(
       const timer = setTimeout(() => {
         refreshTable();
         clearTimeout(timer);
-      }, 60);
+      }, 200);
     });
     resizeObserver.observe(tableElement);
     tableRef.value = tableElement;

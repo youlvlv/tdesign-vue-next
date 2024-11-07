@@ -1,10 +1,11 @@
 import { ref, computed, watch } from 'vue';
 import { CalendarIcon as TdCalendarIcon } from 'tdesign-icons-vue-next';
 import dayjs from 'dayjs';
+import omit from 'lodash/omit';
 
 import { useTNodeJSX } from '../../hooks/tnode';
-import { useFormDisabled } from '../../form/hooks';
-import { usePrefixClass, useConfig } from '../../hooks/useConfig';
+import { useDisabled } from '../../hooks/useDisabled';
+import { usePrefixClass } from '../../hooks/useConfig';
 import { useGlobalIcon } from '../../hooks/useGlobalIcon';
 import { TdDatePickerProps, DateValue } from '../type';
 import {
@@ -18,9 +19,8 @@ import useSingleValue from './useSingleValue';
 
 export default function useSingle(props: TdDatePickerProps) {
   const COMPONENT_NAME = usePrefixClass('date-picker');
-  const { globalConfig } = useConfig('datePicker');
   const { CalendarIcon } = useGlobalIcon({ CalendarIcon: TdCalendarIcon });
-  const disabled = useFormDisabled();
+  const disabled = useDisabled();
   const renderTNodeJSX = useTNodeJSX();
 
   const inputRef = ref();
@@ -48,7 +48,6 @@ export default function useSingle(props: TdDatePickerProps) {
     ref: inputRef,
     prefixIcon: () => renderTNodeJSX('prefixIcon'),
     readonly: !props.allowInput,
-    placeholder: props.placeholder || globalConfig.value.placeholder[props.mode],
     suffixIcon: () => {
       return renderTNodeJSX('suffixIcon') || <CalendarIcon />;
     },
@@ -109,11 +108,10 @@ export default function useSingle(props: TdDatePickerProps) {
       }
     },
   }));
-
   // popup 设置
   const popupProps = computed(() => ({
     expandAnimation: true,
-    ...props.popupProps,
+    ...omit(props.popupProps, 'on-visible-change'),
     disabled: disabled.value,
     overlayInnerStyle: props.popupProps?.overlayInnerStyle ?? { width: 'auto' },
     overlayClassName: [props.popupProps?.overlayClassName, `${COMPONENT_NAME.value}__panel-container`],
@@ -121,6 +119,7 @@ export default function useSingle(props: TdDatePickerProps) {
       if (disabled.value) return;
       // 这里劫持了进一步向 popup 传递的 onVisibleChange 事件，为了保证可以在 Datepicker 中使用 popupProps.onVisibleChange，故此处理
       props.popupProps?.onVisibleChange?.(visible, context);
+      props.popupProps?.['on-visible-change']?.(visible, context);
       // 输入框点击不关闭面板
       if (context.trigger === 'trigger-element-click') {
         popupVisible.value = true;

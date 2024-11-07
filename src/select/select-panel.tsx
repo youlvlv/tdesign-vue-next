@@ -81,7 +81,7 @@ export default defineComponent({
                       scrollType: props.scroll?.type,
                       isVirtual: isVirtual.value,
                       bufferSize: props.scroll?.bufferSize,
-                      key: `${item.$index || ''}_${index}`,
+                      key: `${item.$index || ''}_${index}_${item.value}`,
                     }
                   : {
                       key: `${index}_${item.value}`,
@@ -106,8 +106,9 @@ export default defineComponent({
 
     expose({
       innerRef,
-      visibleData,
+      visibleData, // 虚拟滚动的展示数据
       isVirtual,
+      displayOptions, // 非虚拟滚动的展示数据
     });
 
     const renderPanel = (options: SelectOption[], extraStyle?: Styles) => (
@@ -119,7 +120,6 @@ export default defineComponent({
         ]}
         style={extraStyle}
       >
-        {}
         {/* create option */}
         {showCreateOption.value && renderCreateOption()}
         {/* loading状态 */}
@@ -134,7 +134,7 @@ export default defineComponent({
           renderDefaultTNode('empty', {
             defaultNode: <div class={`${COMPONENT_NAME.value}__empty`}>{t(globalConfig.value.empty)}</div>,
           })}
-        {!isEmpty.value && !props.loading && renderOptionsContent(options)}
+        {!isEmpty.value && renderOptionsContent(options)}
       </div>
     );
     return {

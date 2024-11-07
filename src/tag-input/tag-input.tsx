@@ -1,6 +1,6 @@
 import { defineComponent, computed, toRefs, ref, nextTick, reactive, watch } from 'vue';
 import { CloseCircleFilledIcon as TdCloseCircleFilledIcon } from 'tdesign-icons-vue-next';
-import TInput, { InputProps, InputValue, TdInputProps } from '../input';
+import TInput, { InputProps, StrInputProps, TdInputProps } from '../input';
 import { TdTagInputProps } from './type';
 import props from './props';
 import { renderTNodeJSX } from '../utils/render-tnode';
@@ -13,6 +13,8 @@ import useHover from './hooks/useHover';
 import useDefault from '../hooks/useDefaultValue';
 import useDragSorter from './hooks/useDragSorter';
 import isArray from 'lodash/isArray';
+import { useDisabled } from '../hooks/useDisabled';
+import { useReadonly } from '../hooks/useReadonly';
 
 const useComponentClassName = () => {
   return {
@@ -31,6 +33,9 @@ export default defineComponent({
     const { NAME_CLASS, CLEAR_CLASS, BREAK_LINE_CLASS } = useComponentClassName();
     const { CloseCircleFilledIcon } = useGlobalIcon({ CloseCircleFilledIcon: TdCloseCircleFilledIcon });
 
+    const isDisabled = useDisabled();
+    const isReadonly = useReadonly();
+
     const { inputValue, inputProps } = toRefs(props);
     const [tInputValue, setTInputValue] = useDefault(
       inputValue,
@@ -38,10 +43,10 @@ export default defineComponent({
       props.onInputChange,
       'inputValue',
     );
-    const { excessTagsDisplayType, readonly, disabled, clearable, placeholder } = toRefs(props);
+    const { excessTagsDisplayType, clearable, placeholder } = toRefs(props);
     const { isHover, addHover, cancelHover } = useHover({
-      readonly: props.readonly,
-      disabled: props.disabled,
+      readonly: isReadonly.value,
+      disabled: isDisabled.value,
       onMouseenter: props.onMouseenter,
       onMouseleave: props.onMouseleave,
     });
@@ -86,15 +91,15 @@ export default defineComponent({
 
     const showClearIcon = computed(() =>
       Boolean(
-        !readonly.value &&
-          !disabled.value &&
+        !isReadonly.value &&
+          !isDisabled.value &&
           clearable.value &&
           isHover.value &&
           (tagValue.value?.length || tInputValue.value),
       ),
     );
 
-    const onInputEnter = (value: InputValue, context: { e: KeyboardEvent }) => {
+    const onInputEnter = (value: string, context: { e: KeyboardEvent }) => {
       // 阻止 Enter 默认行为，避免在 Form 中触发 submit 事件
       context.e?.preventDefault?.();
       setTInputValue('', { e: context.e, trigger: 'enter' });
@@ -105,17 +110,18 @@ export default defineComponent({
       });
     };
 
-    const onInputCompositionstart = (value: InputValue, context: { e: CompositionEvent }) => {
+    const onInputCompositionstart = (value: string, context: { e: CompositionEvent }) => {
       isComposition.value = true;
       inputProps.value?.onCompositionstart?.(value, context);
     };
 
-    const onInputCompositionend = (value: InputValue, context: { e: CompositionEvent }) => {
+    const onInputCompositionend = (value: string, context: { e: CompositionEvent }) => {
       isComposition.value = false;
       inputProps.value?.onCompositionend?.(value, context);
     };
 
     const onClick: TdInputProps['onClick'] = (ctx) => {
+      if (isDisabled.value) return;
       isFocused.value = true;
       tagInputRef.value.focus();
       props.onClick?.(ctx);
@@ -145,19 +151,19 @@ export default defineComponent({
       scrollToLeftOnLeave();
     };
 
-    const onInnerFocus: InputProps['onFocus'] = (inputValue: InputValue, context: { e: MouseEvent }) => {
+    const onInnerFocus: InputProps['onFocus'] = (inputValue: string, context: { e: MouseEvent }) => {
       if (isFocused.value) return;
       isFocused.value = true;
       props.onFocus?.(tagValue.value, { e: context.e, inputValue });
     };
 
-    const onInnerBlur: InputProps['onFocus'] = (inputValue: InputValue, context: { e: MouseEvent }) => {
+    const onInnerBlur: InputProps['onFocus'] = (inputValue: string, context: { e: MouseEvent }) => {
       isFocused.value = false;
       setTInputValue('', { e: context.e, trigger: 'blur' });
       props.onBlur?.(tagValue.value, { e: context.e, inputValue });
     };
 
-    const onInnerChange: InputProps['onChange'] = (val, context) => {
+    const onInnerChange: StrInputProps['onChange'] = (val, context) => {
       setTInputValue(val, { ...context, trigger: 'input' });
     };
 
@@ -206,6 +212,8 @@ export default defineComponent({
       onInputCompositionstart,
       onInputCompositionend,
       classes,
+      isDisabled,
+      isReadonly,
     };
   },
 
@@ -225,25 +233,26 @@ export default defineComponent({
     const displayNode = renderTNodeJSX(this, 'valueDisplay', {
       params: {
         value: this.tagValue,
-        onClose: (index: number, item: any) => this.onClose({ index, item }),
+        onClose: (index: number) => this.onClose({ index }),
       },
     });
     // 左侧文本
     const label = renderTNodeJSX(this, 'label', { silent: true });
     const inputProps = this.inputProps as TdTagInputProps['inputProps'];
-    const readonly = this.readonly || inputProps?.readonly;
+    const readonly = this.isReadonly || inputProps?.readonly;
     return (
       <TInput
         ref="tagInputRef"
         v-slots={{
           suffix: this.$slots.suffix,
         }}
+        borderless={this.borderless}
         readonly={readonly}
         showInput={!readonly || !this.tagValue || !this.tagValue?.length}
         value={this.tInputValue}
         autoWidth={true} // 控制input_inner的宽度 设置为true让内部input不会提前换行
         size={this.size}
-        disabled={this.disabled}
+        disabled={this.isDisabled}
         label={() => this.renderLabel({ displayNode, label })}
         class={this.classes}
         tips={this.tips}
